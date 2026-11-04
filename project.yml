@@ -1,0 +1,32 @@
+name: BionicNotes
+options:
+  bundleIdPrefix: com.DEINNAME          # <- anpassen (muss weltweit eindeutig sein)
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""                # <- deine Team-ID aus developer.apple.com eintragen
+    CODE_SIGN_STYLE: Automatic
+targets:
+  BionicNotes:
+    type: application
+    platform: iOS
+    sources:
+      - BionicNotes
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.DEINNAME.bionicnotes   # <- anpassen
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+    info:
+      path: BionicNotes/Info.plist
+      properties:
+        CFBundleDisplayName: BionicNotes
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        NSMicrophoneUsageDescription: "BionicNotes nimmt Vorträge auf, damit du sie später anhören und transkribieren kannst."
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

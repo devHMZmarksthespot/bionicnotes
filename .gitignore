@@ -1,0 +1,9 @@
+# Xcode / XcodeGen
+*.xcodeproj/
+*.xcworkspace/
+BionicNotes/Info.plist
+DerivedData/
+build/
+xcuserdata/
+.DS_Store
+.swiftpm/
