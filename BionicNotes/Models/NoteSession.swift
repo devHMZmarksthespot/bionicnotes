@@ -26,4 +26,6 @@ final class NoteSession {
     var audioURL: URL { folderURL.appending(path: "audio.m4a") }
     var transcriptURL: URL { folderURL.appending(path: "transcript.json") }
     var markersURL: URL { folderURL.appending(path: "markers.json") }
+    var drawingURL: URL { folderURL.appending(path: "drawing.data") }
+    var strokeTimesURL: URL { folderURL.appending(path: "strokes.json") }
 }

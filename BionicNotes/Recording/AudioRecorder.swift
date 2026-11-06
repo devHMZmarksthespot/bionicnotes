@@ -16,6 +16,8 @@ final class AudioRecorder {
     @ObservationIgnored private let capture = AudioCaptureEngine()
     @ObservationIgnored private var accumulated: TimeInterval = 0
     @ObservationIgnored private var segmentStart: Date?
+    /// Aufnahme-Abschnitte zwischen Pausen: Uhrzeit des Starts + Session-Zeit an dieser Stelle.
+    @ObservationIgnored private var segments: [(wall: Date, elapsed: TimeInterval)] = []
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private var interruptionObserver: NSObjectProtocol?
 
@@ -48,6 +50,7 @@ final class AudioRecorder {
             try capture.start(writingTo: url)
             accumulated = 0
             segmentStart = .now
+            segments = [(.now, 0)]
             state = .recording
             startTicking()
             return true
@@ -72,6 +75,7 @@ final class AudioRecorder {
             try AVAudioSession.sharedInstance().setActive(true)
             try capture.resume()
             segmentStart = .now
+            segments.append((.now, accumulated))
             state = .recording
         } catch {
             errorMessage = error.localizedDescription
@@ -92,6 +96,15 @@ final class AudioRecorder {
         state = .idle
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         return accumulated
+    }
+
+    /// Rechnet eine Uhrzeit (z. B. `creationDate` eines Pencil-Strichs) auf die Session-Zeitachse um –
+    /// Pausen zählen nicht mit. `nil`, wenn gerade keine Aufnahme läuft.
+    func sessionTime(at date: Date) -> TimeInterval? {
+        guard state != .idle else { return nil }
+        guard let segment = segments.last(where: { $0.wall <= date }) else { return 0 }
+        let time = segment.elapsed + date.timeIntervalSince(segment.wall)
+        return state == .paused ? min(time, accumulated) : time
     }
 
     private func startTicking() {

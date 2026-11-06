@@ -8,11 +8,12 @@ struct SessionView: View {
     @State private var transcriber: LiveTranscriber?
     @State private var isStarting = false
     @State private var markers = MarkerStore()
+    @State private var notes = NotesStore()
 
     private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             TextField("Titel", text: $session.title)
                 .font(.title2.bold())
                 .textFieldStyle(.roundedBorder)
@@ -43,13 +44,13 @@ struct SessionView: View {
                 Text(message).foregroundStyle(.red).font(.callout)
             }
 
-            if transcript.isEmpty {
-                Spacer()
-            } else {
-                TranscriptView(store: transcript,
-                               playbackTime: isPlaybackMode ? player.currentTime : nil,
-                               onSelect: isPlaybackMode ? jump(to:) : nil)
-            }
+            SessionWorkspace(notes: notes,
+                             transcript: transcript,
+                             isPlaybackMode: isPlaybackMode,
+                             playbackTime: isPlaybackMode ? player.currentTime : nil,
+                             timeForStroke: strokeTime(for:),
+                             onJump: jump(toTime:),
+                             onSelectSegment: isPlaybackMode ? jump(to:) : nil)
         }
         .padding()
         .navigationTitle("Session")
@@ -62,8 +63,12 @@ struct SessionView: View {
                 transcript.load(from: session.transcriptURL)
             }
             markers.load(from: session.markersURL)
+            notes.load(drawingURL: session.drawingURL, timesURL: session.strokeTimesURL)
         }
-        .onDisappear { player.stop() }
+        .onDisappear {
+            player.stop()
+            notes.saveNow()
+        }
         // Watch über Start/Pause/Fortsetzen/Stopp informieren
         .onChange(of: recorder.state) { PhoneWatchLink.shared.publishState() }
     }
@@ -114,6 +119,7 @@ struct SessionView: View {
 
     private func finishRecording() {
         PhoneWatchLink.shared.detach()
+        notes.saveNow()
         session.duration = recorder.stop()
         session.hasAudio = true
         player.load(url: session.audioURL)
@@ -157,6 +163,14 @@ struct SessionView: View {
             recentText: { seconds in transcript.recentText(seconds: seconds, until: recorder.elapsed) },
             addMarker: { markers.add($0, savingTo: markersURL) }
         ))
+    }
+
+    /// Session-Zeit für einen neuen Pencil-Strich: während der Aufnahme die Aufnahmezeit
+    /// beim Schreiben, in der Wiedergabe die aktuelle Abspielposition, sonst keine.
+    private func strokeTime(for date: Date) -> TimeInterval? {
+        if recorder.state != .idle { return recorder.sessionTime(at: date) }
+        if isPlaybackMode { return player.currentTime }
+        return nil
     }
 
     private func addPhoneMarker() {

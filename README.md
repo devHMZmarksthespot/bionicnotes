@@ -28,7 +28,7 @@ Nach jeder Änderung an `project.yml` oder wenn neue Dateien dazukommen: `xcodeg
 - [x] Projekt-Setup 27.3 + Watch-Target (Gerüst)
 - [x] Schritt 2 – Live-Transkription on-device (SpeechAnalyzer), Transkript antippen → Audio springt
 - [~] Watch: BionicNotes Rewind + ⭐ Marker (Simulator-Build, Test auf echter Watch offen) – Fernbedienung folgt
-- [ ] Schritt 3 – Pencil-Notizen mit Zeitverknüpfung
+- [x] Schritt 3 – Pencil-Notizen mit Zeitverknüpfung (Tippen auf Notiz → Audio springt)
 - [ ] Schritt 4 – Fotos mit iPhone-Kamera
 - [ ] Schritt 5 – Layouts auf-/zugeklappt (iPhone Duo)
 - [ ] Schritt 6 – Meta-Brille (Wearables Device Access Toolkit)
