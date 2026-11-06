@@ -1,6 +1,10 @@
 # BionicNotes – Konzept
 
-Konferenz-App für das **iPhone Duo** (faltbar, Apple Pencil ab iOS 27.2): Audio aufnehmen und **lokal** transkribieren, parallel mit dem Apple Pencil Notizen schreiben, Fotos (iPhone-Kamera oder Meta-Brille) landen automatisch an der richtigen Stelle.
+Konferenz-App für das **iPhone Duo** (faltbar, Apple Pencil ab iOS 27.2) mit **Apple Watch** und **Meta-Brille**: Audio aufnehmen und **lokal** transkribieren, parallel mit dem Apple Pencil Notizen schreiben, Fotos (iPhone-Kamera oder Meta-Brille) landen automatisch an der richtigen Stelle. Die Watch ist Fernbedienung und zeigt per „Rewind“ das zuletzt Gesagte.
+
+**Der perfekte Konferenztag:** App starten, Aufnahme läuft, man schreibt mit dem Pencil, beobachtet, macht Fotos mit der Brille, holt sich am Handgelenk kurz zurück, was gerade gesagt wurde – und hat am Ende des Vortrags alles Wichtige notiert, mit dem Transkript als Kontext. (Später auch für Schule/Unterricht.)
+
+**Ziel-Release:** zum Public Release von iOS/watchOS 27.3 (Dezember 2026). Mindestversion iOS 27.3 / watchOS 27.3.
 
 ---
 
@@ -14,7 +18,8 @@ Jede Session (z. B. ein Vortrag) hat **eine gemeinsame Uhr**, die mit der Aufnah
 | Transkript | Apple SpeechAnalyzer (on-device) | pro Wort/Satz |
 | Handschrift | PencilKit-Striche | pro Strich |
 | Fotos | iPhone-Kamera / Meta-Brille | Aufnahmezeitpunkt |
-| Text-Marker | Tap auf „⭐ Wichtig“ | Moment |
+| Text-Marker | Tap auf „⭐ Wichtig“ (iPhone oder Watch) | Moment |
+| Rewind-Snippet | Watch: „Was wurde gerade gesagt?“ | Moment + letzte 30–60 s |
 
 Daraus ergibt sich die Killer-Funktion: **Auf einen handschriftlichen Strich oder ein Foto tippen → Audio und Transkript springen genau zu diesem Moment** (wie bei Notability, nur mit Transkript und Brillen-Fotos).
 
@@ -63,7 +68,15 @@ Das iPhone Duo unterstützt seit **iOS 27.2** den **Apple Pencil (USB-C)** (kein
 - Auslösen: Button in der App (auch auf dem Außendisplay im zugeklappten Zustand), Apple-Watch-Button oder Lautstärketaste als Fernauslöser. **Zu prüfen:** ob das SDK den Hardware-Auslöser der Brille an Dritt-Apps weitergibt.
 - Fallback ohne SDK: Fotos, die normal mit der Brille gemacht und über die Meta AI App in die Fotomediathek importiert werden, per `PhotoKit` anhand des Zeitstempels automatisch der laufenden Session zuordnen.
 
-### 3.6 Nach dem Vortrag
+### 3.6 Apple Watch – Fernbedienung & BionicNotes Rewind
+- **Hintergrund:** watchOS 27.3 bringt **Live Rewind** (Digital Crown doppelt drücken → Transkript der letzten 15 s). Das ist eine reine Systemfunktion: **keine API für Dritt-Apps**, nur Englisch, nur Series 12 / Ultra 4 mit iPhone 16+.
+- **Unser eigenes Rewind:** Das iPhone transkribiert ohnehin live. Die Watch zeigt auf Tap die **letzten 30–60 s Transkript** – auf Deutsch, mit jeder Watch. Snippet per Tap als Marker in der Session speichern.
+- **Fernbedienung:** Aufnahme starten/pausieren, Dauer/Status, „⭐ Wichtig“, Foto auslösen (iPhone-Kamera / Meta-Brille).
+- **Technik:** `WatchConnectivity` (`sendMessage` solange die Watch-App aktiv ist, `updateApplicationContext` für den Status). `SpeechAnalyzer` gibt es auf watchOS nicht → Transkription immer auf dem iPhone.
+- **Siri / App Intents (Developer Preview in 27.3):** dieselben Aktionen per Sprache („Setz einen Marker“, „Was wurde gerade gesagt?“).
+- Optional später: Watch als Zusatzmikrofon für eigene Sprachnotizen.
+
+### 3.7 Nach dem Vortrag
 - Session-Ansicht: Zeitleiste mit Audio, Transkript, Notizen, Fotos.
 - Volltextsuche über Transkript, Handschrift und Folien-OCR.
 - Export: PDF (Notizen + Fotos + Transkript), Markdown, Audio-Datei.
@@ -74,7 +87,8 @@ Das iPhone Duo unterstützt seit **iOS 27.2** den **Apple Pencil (USB-C)** (kein
 ## 4. Architektur
 
 ```
-SwiftUI-App (iOS 27.2+, optimiert für iPhone Duo; läuft auch auf normalen iPhones/iPads)
+SwiftUI-App (iOS 27.3+, optimiert für iPhone Duo; läuft auch auf normalen iPhones/iPads)
++ watchOS-App (27.3+): Fernbedienung & Rewind
 ├── Core
 │   ├── SessionClock          gemeinsame Zeitachse
 │   ├── Datenmodell           SwiftData: Conference, Session, Transcript, Stroke, Photo, Marker
@@ -85,6 +99,7 @@ SwiftUI-App (iOS 27.2+, optimiert für iPhone Duo; läuft auch auf normalen iPho
 ├── Capture
 │   ├── PhoneCamera           AVFoundation, Folien-Erkennung, OCR
 │   └── MetaGlasses           Meta DAT SDK
+├── WatchLink                 WatchConnectivity, Rewind-Snippets, Fernsteuerung
 ├── FoldLayout               Layouts für auf-/zugeklappt, nahtloser Wechsel
 ├── Sync (später)            CloudKit für iPad/Mac
 └── Export                    PDF, Markdown
@@ -97,8 +112,9 @@ Alle Daten bleiben lokal auf den Geräten. Keine Cloud-Pflicht.
 ## 5. Was wir brauchen
 
 ### Hardware
-- **Mac** mit aktuellem macOS und aktuellem **Xcode** mit iOS-27.2-SDK (iOS-Apps lassen sich nur auf dem Mac bauen).
-- **iPhone Duo** mit **iOS 27.2** oder neuer.
+- **Mac** mit aktuellem macOS und **Xcode 27.3 (Beta)** mit iOS- und watchOS-27.3-SDK (iOS-Apps lassen sich nur auf dem Mac bauen).
+- **iPhone Duo** mit **iOS 27.3** oder neuer.
+- **Apple Watch** mit **watchOS 27.3** (Beta lässt sich nicht zurücksetzen – nur Test-Watch).
 - **Apple Pencil (USB-C)** – die einzige Pencil-Variante, die das Duo unterstützt.
 - **Meta-Brille**, die vom DAT unterstützt wird (Ray-Ban Meta / Oakley Meta – aktuelle Liste in der Meta-Doku prüfen).
 - Optional: externes Mikrofon für bessere Transkription in großen Sälen.
@@ -121,6 +137,8 @@ Alle Daten bleiben lokal auf den Geräten. Keine Cloud-Pflicht.
 | Falt-Layouts | SwiftUI Size Classes / Scene-Handling |
 | Sync (optional) | CloudKit |
 | Zusammenfassungen | Foundation Models (optional) |
+| Watch | SwiftUI (watchOS), WatchConnectivity |
+| Siri | App Intents |
 
 ### Berechtigungen (Info.plist)
 Mikrofon, Spracherkennung, Kamera, Fotomediathek, Bluetooth, Hintergrund-Audio, plus die Einträge, die das Meta-SDK verlangt.
@@ -131,7 +149,9 @@ Mikrofon, Spracherkennung, Kamera, Fotomediathek, Bluetooth, Hintergrund-Audio, 
 
 1. **Meta-SDK ist noch Developer Preview.** API kann sich ändern; laut Hinweisen nutzt es aktuell das ExternalAccessory-Framework, was zu **App-Store-Ablehnung** führen kann. Für den eigenen Gebrauch (Xcode-Installation / TestFlight) kein Problem – für eine öffentliche App-Store-Version vorher klären.
 2. **Brillen-Auslöser:** unklar, ob Fotos per Tastendruck an der Brille direkt in unsere App gehen oder nur per App-Button. Früh im Prototyp testen.
-3. **Pencil-Einschränkungen:** nur Pencil (USB-C), kein Hover, erst ab iOS 27.2 – Mindestversion entsprechend setzen.
+3. **Pencil-Einschränkungen:** nur Pencil (USB-C), kein Hover, erst ab iOS 27.2 – Mindestversion 27.3 gesetzt.
+7. **Watch:** Apples Live Rewind ist nicht für Apps nutzbar → eigenes Rewind. WatchConnectivity-Übertragungen im Hintergrund sind unzuverlässig → Live-Daten nur bei aktiver Watch-App.
+8. **Zeitplan:** Release 27.3 im Dezember ist knapp → Fokus: Transkription, Watch-Rewind, Fernbedienung, Pencil.
 4. **Akku:** Aufnahme + Live-Transkription + Brillen-Stream über 8 h Konferenztag ist energieintensiv → Brillen-Stream nur bei Bedarf starten, Transkription ggf. erst nachträglich laufen lassen (Einstellung).
 5. **Saal-Akustik:** Transkriptionsqualität hängt stark vom Mikrofon ab; externes Mikro oder Platz nahe am Lautsprecher hilft.
 6. **Rechtliches:** Mitschnitte von Vorträgen sind oft nur mit Zustimmung erlaubt (DSGVO, Persönlichkeits-/Urheberrecht, Konferenzregeln). Hinweis in der App einbauen.
@@ -159,3 +179,6 @@ Mikrofon, Spracherkennung, Kamera, Fotomediathek, Bluetooth, Hintergrund-Audio, 
 - iOS-SDK auf GitHub: https://github.com/facebook/meta-wearables-dat-ios
 - Apple SpeechAnalyzer (WWDC25, Session 277): https://nonstrict.eu/wwdcindex/wwdc2025/277/
 - SpeechAnalyzer-Überblick: https://blog.addpipe.com/apple-speechanalyzer-api/
+- watchOS 27.3 Live Rewind (MacRumors): https://www.macrumors.com/2026/11/03/watchos-27-3-audio-intelligence/
+- watchOS 27.3 Beta (9to5Mac): https://9to5mac.com/2026/11/03/watchos-27-3-beta-adds-new-siri-recap-and-live-rewind-features-for-apple-watch/
+- Watch Connectivity: https://developer.apple.com/documentation/watchconnectivity/transferring-data-with-watch-connectivity

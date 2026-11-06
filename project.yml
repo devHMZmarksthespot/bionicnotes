@@ -1,26 +1,29 @@
 name: BionicNotes
 options:
-  bundleIdPrefix: com.DEINNAME          # <- anpassen (muss weltweit eindeutig sein)
+  bundleIdPrefix: hmzinnovation
   deploymentTarget:
-    iOS: "26.0"
+    iOS: "27.3"          # Pencil auf dem iPhone Duo ab 27.2, Ziel-Release 27.3
+    watchOS: "27.3"
   createIntermediateGroups: true
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""                # <- deine Team-ID aus developer.apple.com eintragen
+    DEVELOPMENT_TEAM: CA9847D4GK
     CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
 targets:
   BionicNotes:
     type: application
     platform: iOS
     sources:
       - BionicNotes
+    dependencies:
+      - target: BionicNotesWatch      # Watch-App wird ins iPhone-App-Bundle eingebettet
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.DEINNAME.bionicnotes   # <- anpassen
+        PRODUCT_BUNDLE_IDENTIFIER: hmzinnovation.bionicnotes
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
     info:
       path: BionicNotes/Info.plist
       properties:
@@ -30,3 +33,20 @@ targets:
         NSMicrophoneUsageDescription: "BionicNotes nimmt Vorträge auf, damit du sie später anhören und transkribieren kannst."
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+
+  BionicNotesWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - BionicNotesWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: hmzinnovation.bionicnotes.watchkitapp
+        PRODUCT_NAME: BionicNotes
+        SKIP_INSTALL: YES
+    info:
+      path: BionicNotesWatch/Info.plist
+      properties:
+        CFBundleDisplayName: BionicNotes
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: hmzinnovation.bionicnotes
