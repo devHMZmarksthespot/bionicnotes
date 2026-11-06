@@ -26,7 +26,7 @@ Nach jeder Änderung an `project.yml` oder wenn neue Dateien dazukommen: `xcodeg
 
 - [x] **Schritt 1** – Grundgerüst: Sessions-Liste, Aufnahme (Pause/Fortsetzen, Pegel, läuft im Hintergrund weiter), Wiedergabe
 - [x] Projekt-Setup 27.3 + Watch-Target (Gerüst)
-- [ ] Schritt 2 – Live-Transkription on-device (SpeechAnalyzer)
+- [x] Schritt 2 – Live-Transkription on-device (SpeechAnalyzer), Transkript antippen → Audio springt
 - [ ] Watch: BionicNotes Rewind + Fernbedienung
 - [ ] Schritt 3 – Pencil-Notizen mit Zeitverknüpfung
 - [ ] Schritt 4 – Fotos mit iPhone-Kamera

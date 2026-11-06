@@ -14,7 +14,7 @@ enum RecorderError: LocalizedError {
 
 /// Läuft bewusst NICHT auf dem MainActor: der Tap-Callback kommt vom Audio-Thread.
 /// Schreibt das Mikrofon in eine AAC-Datei und reicht jeden Puffer weiter
-/// (Pegelanzeige jetzt, Transkription in Schritt 2).
+/// (Pegelanzeige und Live-Transkription).
 final class AudioCaptureEngine: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var file: AVAudioFile?
@@ -44,6 +44,9 @@ final class AudioCaptureEngine: @unchecked Sendable {
                                commonFormat: .pcmFormatFloat32,
                                interleaved: format.isInterleaved)
 
+        // installTap ist in iOS 27 deprecated; der Nachfolger mit Fehlerrückgabe hat im
+        // 27.3-Beta-SDK noch keinen Swift-Wrapper. Umstellen, sobald Apple ihn nachliefert.
+        transcriptionLog.info("mic format: \(format.description, privacy: .public)")
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, time in
             guard let self else { return }
             try? self.file?.write(from: buffer)

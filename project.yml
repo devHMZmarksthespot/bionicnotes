@@ -16,6 +16,7 @@ targets:
   BionicNotes:
     type: application
     platform: iOS
+    scheme: {}                        # feste Schemes, statt sie von Xcode automatisch erzeugen zu lassen
     sources:
       - BionicNotes
     dependencies:
@@ -31,12 +32,14 @@ targets:
         UILaunchScreen: {}
         UIBackgroundModes: [audio]
         NSMicrophoneUsageDescription: "BionicNotes nimmt Vorträge auf, damit du sie später anhören und transkribieren kannst."
+        NSSpeechRecognitionUsageDescription: "BionicNotes transkribiert Vorträge direkt auf dem Gerät – nichts verlässt dein iPhone."
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
 
   BionicNotesWatch:
     type: application
     platform: watchOS
+    scheme: {}
     sources:
       - BionicNotesWatch
     settings:

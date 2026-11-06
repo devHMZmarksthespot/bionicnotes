@@ -10,6 +10,8 @@ final class NoteSession {
     /// Länge der Aufnahme in Sekunden.
     var duration: TimeInterval
     var hasAudio: Bool
+    /// Sprache der Transkription, z. B. "de-DE" oder "en-US".
+    var language: String = "de-DE"
 
     init(title: String) {
         self.uuid = UUID()
@@ -17,8 +19,10 @@ final class NoteSession {
         self.createdAt = .now
         self.duration = 0
         self.hasAudio = false
+        self.language = TranscriptionLanguage.defaultIdentifier
     }
 
     var folderURL: URL { SessionStorage.folder(for: uuid) }
     var audioURL: URL { folderURL.appending(path: "audio.m4a") }
+    var transcriptURL: URL { folderURL.appending(path: "transcript.json") }
 }

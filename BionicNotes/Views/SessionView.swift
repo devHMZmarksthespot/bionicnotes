@@ -4,48 +4,128 @@ struct SessionView: View {
     @Bindable var session: NoteSession
     @State private var recorder = AudioRecorder()
     @State private var player = AudioPlayer()
+    @State private var transcript = TranscriptStore()
+    @State private var transcriber: LiveTranscriber?
+    @State private var isStarting = false
+
+    private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
 
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 20) {
             TextField("Titel", text: $session.title)
                 .font(.title2.bold())
                 .textFieldStyle(.roundedBorder)
 
-            if session.hasAudio && recorder.state == .idle {
+            if isPlaybackMode {
                 PlayerControls(player: player)
             } else {
-                RecorderControls(recorder: recorder, onStart: startRecording, onStop: finishRecording)
+                RecorderControls(recorder: recorder, startDisabled: isStarting,
+                                 onStart: startRecording, onStop: finishRecording)
+                if recorder.state == .idle {
+                    Picker("Sprache", selection: $session.language) {
+                        ForEach(TranscriptionLanguage.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isStarting)
+                }
             }
+
+            TranscriptStatusView(status: transcript.status)
 
             if let message = recorder.errorMessage ?? player.errorMessage {
                 Text(message).foregroundStyle(.red).font(.callout)
             }
-            Spacer()
+
+            if transcript.isEmpty {
+                Spacer()
+            } else {
+                TranscriptView(store: transcript,
+                               playbackTime: isPlaybackMode ? player.currentTime : nil,
+                               onSelect: isPlaybackMode ? jump(to:) : nil)
+            }
         }
         .padding()
         .navigationTitle("Session")
         .navigationBarTitleDisplayMode(.inline)
         // Während der Aufnahme nicht versehentlich rausnavigieren
-        .navigationBarBackButtonHidden(recorder.state != .idle)
+        .navigationBarBackButtonHidden(recorder.state != .idle || isStarting)
         .onAppear {
-            if session.hasAudio { player.load(url: session.audioURL) }
+            if session.hasAudio {
+                player.load(url: session.audioURL)
+                transcript.load(from: session.transcriptURL)
+            }
         }
         .onDisappear { player.stop() }
     }
 
     private func startRecording() {
-        Task { await recorder.start(writingTo: session.audioURL) }
+        guard !isStarting else { return }
+        isStarting = true
+        player.stop()
+        TranscriptionLanguage.remember(session.language)
+        Task {
+            defer { isStarting = false }
+            transcript.reset()
+            transcript.status = .preparing
+            let store = transcript
+
+            // 1. Transkription vorbereiten (lädt einmalig das Sprachmodell).
+            //    Klappt das nicht, wird trotzdem aufgenommen – nur ohne Live-Transkript.
+            var live: LiveTranscriber?
+            do {
+                let t = try await LiveTranscriber.prepare(locale: Locale(identifier: session.language)) { progress in
+                    Task { @MainActor in
+                        switch store.status {
+                        case .preparing, .downloading: store.status = .downloading(progress)
+                        default: break
+                        }
+                    }
+                }
+                try await t.start { update in store.apply(update) }
+                live = t
+                transcript.status = .listening
+            } catch {
+                transcript.status = .unavailable(error.localizedDescription)
+            }
+
+            // 2. Aufnahme starten; jeder Mikrofon-Puffer geht zusätzlich an die Transkription.
+            transcriber = live
+            let started = await recorder.start(writingTo: session.audioURL,
+                                               onBuffer: live.map { t in { @Sendable buffer, _ in t.feed(buffer) } })
+            if !started, let live {
+                await live.finish()
+                transcriber = nil
+                transcript.status = .idle
+            }
+        }
     }
 
     private func finishRecording() {
         session.duration = recorder.stop()
         session.hasAudio = true
         player.load(url: session.audioURL)
+
+        let live = transcriber
+        transcriber = nil
+        let store = transcript
+        let url = session.transcriptURL
+        let language = session.language
+        Task {
+            if let live { await live.finish() }
+            if case .listening = store.status { store.status = .idle }
+            store.save(to: url, locale: language)
+        }
+    }
+
+    private func jump(to segment: TranscriptSegment) {
+        player.seek(to: segment.start)
+        if !player.isPlaying { player.toggle() }
     }
 }
 
 private struct RecorderControls: View {
     let recorder: AudioRecorder
+    let startDisabled: Bool
     let onStart: () -> Void
     let onStop: () -> Void
 
@@ -62,6 +142,7 @@ private struct RecorderControls: View {
                 switch recorder.state {
                 case .idle:
                     RoundButton(systemImage: "record.circle.fill", tint: .red, label: "Aufnahme starten", action: onStart)
+                        .disabled(startDisabled)
                 case .recording:
                     RoundButton(systemImage: "pause.fill", tint: .orange, label: "Pause", action: recorder.pause)
                     RoundButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)

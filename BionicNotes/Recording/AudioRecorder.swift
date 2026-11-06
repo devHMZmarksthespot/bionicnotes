@@ -23,20 +23,23 @@ final class AudioRecorder {
         capture.onLevel = { [weak self] value in
             Task { @MainActor in self?.level = value }
         }
+        // iOS 27: ersetzt die alte Interruption-Notification.
+        // z. B. Anruf: Session wird inaktiv → Aufnahme pausieren, Nutzer setzt selbst fort.
         interruptionObserver = NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
-        ) { [weak self] note in
-            let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-            Task { @MainActor in
-                // z. B. Anruf: Aufnahme pausieren, Nutzer setzt selbst fort
-                if raw == AVAudioSession.InterruptionType.began.rawValue { self?.pause() }
-            }
+            forName: AVAudioSession.didBecomeInactiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.pause() }
         }
     }
 
-    func start(writingTo url: URL) async {
-        guard state == .idle else { return }
+    /// Startet die Aufnahme. `onBuffer` bekommt jeden Mikrofon-Puffer (Audio-Thread), z. B. für die Transkription.
+    /// - Returns: `true`, wenn die Aufnahme läuft.
+    @discardableResult
+    func start(writingTo url: URL,
+               onBuffer: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)? = nil) async -> Bool {
+        guard state == .idle else { return false }
         errorMessage = nil
+        capture.onBuffer = onBuffer
         do {
             guard await AVAudioApplication.requestRecordPermission() else { throw RecorderError.noPermission }
             let session = AVAudioSession.sharedInstance()
@@ -47,8 +50,10 @@ final class AudioRecorder {
             segmentStart = .now
             state = .recording
             startTicking()
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
