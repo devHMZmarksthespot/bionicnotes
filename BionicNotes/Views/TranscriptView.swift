@@ -92,9 +92,7 @@ struct TranscriptStatusView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
         case .listening:
-            Label("Live-Transkription läuft (on-device)", systemImage: "captions.bubble")
-                .font(.callout)
-                .foregroundStyle(.green)
+            EmptyView() // wird als Symbol in der Aufnahme-Leiste angezeigt
         case .unavailable(let message):
             Label(message, systemImage: "exclamationmark.triangle")
                 .font(.callout)

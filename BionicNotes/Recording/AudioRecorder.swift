@@ -11,6 +11,8 @@ final class AudioRecorder {
     private(set) var state: State = .idle
     private(set) var level: Float = 0
     private(set) var elapsed: TimeInterval = 0
+    /// Mikrofon liefert seit ~3 s exakt Stille (z. B. iPhone mit dem Mac verbunden).
+    private(set) var isInputSilent = false
     var errorMessage: String?
 
     @ObservationIgnored private let capture = AudioCaptureEngine()
@@ -24,6 +26,9 @@ final class AudioRecorder {
     init() {
         capture.onLevel = { [weak self] value in
             Task { @MainActor in self?.level = value }
+        }
+        capture.onSilence = { [weak self] silent in
+            Task { @MainActor in self?.isInputSilent = silent }
         }
         // iOS 27: ersetzt die alte Interruption-Notification.
         // z. B. Anruf: Session wird inaktiv → Aufnahme pausieren, Nutzer setzt selbst fort.
@@ -93,6 +98,7 @@ final class AudioRecorder {
         segmentStart = nil
         elapsed = accumulated
         level = 0
+        isInputSilent = false
         state = .idle
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         return accumulated

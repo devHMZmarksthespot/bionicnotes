@@ -14,6 +14,13 @@ enum TranscriptionLanguage: String, CaseIterable, Identifiable {
         }
     }
 
+    var shortLabel: String {
+        switch self {
+        case .german: "DE"
+        case .english: "EN"
+        }
+    }
+
     private static let lastUsedKey = "lastTranscriptionLanguage"
 
     /// Zuletzt gewählte Sprache; beim allerersten Mal die Gerätesprache (Englisch) bzw. Deutsch.

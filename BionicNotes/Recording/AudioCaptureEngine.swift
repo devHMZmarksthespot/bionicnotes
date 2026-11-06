@@ -1,3 +1,4 @@
+import Accelerate
 import AVFoundation
 
 enum RecorderError: LocalizedError {
@@ -21,6 +22,12 @@ final class AudioCaptureEngine: @unchecked Sendable {
 
     /// Pegel 0…1, wird vom Audio-Thread aufgerufen.
     var onLevel: (@Sendable (Float) -> Void)?
+    /// `true`, sobald das Mikrofon ~3 s lang exakt Stille liefert (z. B. Audio zum Mac umgeleitet),
+    /// `false`, sobald wieder Signal kommt. Wird vom Audio-Thread aufgerufen.
+    var onSilence: (@Sendable (Bool) -> Void)?
+    private var silentFrames: AVAudioFrameCount = 0
+    private var reportedSilent = false
+
     /// Rohe Audiopuffer, z. B. für die Live-Transkription.
     var onBuffer: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)?
 
@@ -28,6 +35,8 @@ final class AudioCaptureEngine: @unchecked Sendable {
     private(set) var inputFormat: AVAudioFormat?
 
     func start(writingTo url: URL) throws {
+        silentFrames = 0
+        reportedSilent = false
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else { throw RecorderError.noInput }
@@ -51,6 +60,7 @@ final class AudioCaptureEngine: @unchecked Sendable {
             guard let self else { return }
             try? self.file?.write(from: buffer)
             self.onLevel?(Self.level(of: buffer))
+            self.trackSilence(buffer)
             self.onBuffer?(buffer, time)
         }
         engine.prepare()
@@ -69,6 +79,19 @@ final class AudioCaptureEngine: @unchecked Sendable {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         file = nil // schließt die Datei
+    }
+
+    /// Exakt 0 in jedem Sample ist keine leise Umgebung, sondern ein fehlendes Signal.
+    private func trackSilence(_ buffer: AVAudioPCMBuffer) {
+        guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return }
+        var peak: Float = 0
+        vDSP_maxmgv(samples, 1, &peak, vDSP_Length(buffer.frameLength))
+        silentFrames = peak == 0 ? silentFrames + buffer.frameLength : 0
+        let silent = Double(silentFrames) >= buffer.format.sampleRate * 3
+        if silent != reportedSilent {
+            reportedSilent = silent
+            onSilence?(silent)
+        }
     }
 
     /// RMS → dB → 0…1 (‑60 dB = 0, 0 dB = 1)

@@ -13,23 +13,17 @@ struct SessionView: View {
     private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
 
     var body: some View {
-        VStack(spacing: 12) {
-            TextField("Titel", text: $session.title)
-                .font(.title2.bold())
-                .textFieldStyle(.roundedBorder)
-
+        VStack(spacing: 10) {
             if isPlaybackMode {
-                PlayerControls(player: player)
+                PlayerBar(player: player)
             } else {
-                RecorderControls(recorder: recorder, startDisabled: isStarting,
-                                 onStart: startRecording, onStop: finishRecording, onMarker: addPhoneMarker)
-                if recorder.state == .idle {
-                    Picker("Sprache", selection: $session.language) {
-                        ForEach(TranscriptionLanguage.allCases) { Text($0.label).tag($0.rawValue) }
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(isStarting)
-                }
+                RecorderBar(recorder: recorder, isListening: transcript.status == .listening,
+                            startDisabled: isStarting,
+                            onStart: startRecording, onStop: finishRecording, onMarker: addPhoneMarker)
+            }
+
+            if recorder.isInputSilent {
+                SilentMicBanner()
             }
 
             TranscriptStatusView(status: transcript.status)
@@ -48,13 +42,22 @@ struct SessionView: View {
                              transcript: transcript,
                              isPlaybackMode: isPlaybackMode,
                              playbackTime: isPlaybackMode ? player.currentTime : nil,
+                             highlightTime: isPlaybackMode && player.isPlaying ? player.currentTime : nil,
                              timeForStroke: strokeTime(for:),
                              onJump: jump(toTime:),
                              onSelectSegment: isPlaybackMode ? jump(to:) : nil)
         }
-        .padding()
-        .navigationTitle("Session")
+        .padding(.horizontal)
+        .padding(.top, 4)
+        // Titel direkt in der Navigationsleiste umbenennen (Tippen auf den Titel)
+        .navigationTitle($session.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarRole(.editor)
+        .toolbar {
+            if recorder.state == .idle && !isPlaybackMode {
+                ToolbarItem(placement: .topBarTrailing) { languageMenu }
+            }
+        }
         // Während der Aufnahme nicht versehentlich rausnavigieren
         .navigationBarBackButtonHidden(recorder.state != .idle || isStarting)
         .onAppear {
@@ -71,6 +74,18 @@ struct SessionView: View {
         }
         // Watch über Start/Pause/Fortsetzen/Stopp informieren
         .onChange(of: recorder.state) { PhoneWatchLink.shared.publishState() }
+    }
+
+    private var languageMenu: some View {
+        Menu {
+            Picker("Sprache der Transkription", selection: $session.language) {
+                ForEach(TranscriptionLanguage.allCases) { Text($0.label).tag($0.rawValue) }
+            }
+        } label: {
+            Label(TranscriptionLanguage(rawValue: session.language)?.shortLabel ?? "Sprache", systemImage: "globe")
+                .labelStyle(.titleAndIcon)
+        }
+        .disabled(isStarting)
     }
 
     private func startRecording() {
@@ -179,64 +194,98 @@ struct SessionView: View {
     }
 }
 
-private struct RecorderControls: View {
+/// Schmale Aufnahme-Leiste: Start bzw. Pause/Fortsetzen · Zeit + Pegel · ⭐ · Stopp.
+private struct RecorderBar: View {
     let recorder: AudioRecorder
+    let isListening: Bool
     let startDisabled: Bool
     let onStart: () -> Void
     let onStop: () -> Void
     let onMarker: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text(recorder.elapsed.clockString)
-                .font(.system(size: 56, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-
-            LevelMeter(level: recorder.level)
-                .frame(height: 10)
-
-            HStack(spacing: 40) {
-                switch recorder.state {
-                case .idle:
-                    RoundButton(systemImage: "record.circle.fill", tint: .red, label: "Aufnahme starten", action: onStart)
-                        .disabled(startDisabled)
-                case .recording:
-                    RoundButton(systemImage: "pause.fill", tint: .orange, label: "Pause", action: recorder.pause)
-                    RoundButton(systemImage: "star.fill", tint: .yellow, label: "Marker setzen", action: onMarker)
-                    RoundButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)
-                case .paused:
-                    RoundButton(systemImage: "record.circle.fill", tint: .red, label: "Fortsetzen", action: recorder.resume)
-                    RoundButton(systemImage: "star.fill", tint: .yellow, label: "Marker setzen", action: onMarker)
-                    RoundButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)
+        HStack(spacing: 12) {
+            switch recorder.state {
+            case .idle:
+                Button(action: onStart) {
+                    Label("Aufnahme starten", systemImage: "record.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .controlSize(.large)
+                .disabled(startDisabled)
+            case .recording, .paused:
+                let recording = recorder.state == .recording
+                CircleButton(systemImage: recording ? "pause.fill" : "record.circle.fill",
+                             tint: recording ? .orange : .red,
+                             label: recording ? "Pause" : "Fortsetzen",
+                             action: recording ? recorder.pause : recorder.resume)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(recorder.elapsed.clockString)
+                            .font(.title3.monospacedDigit().bold())
+                        if isListening {
+                            Image(systemName: "captions.bubble.fill")
+                                .foregroundStyle(.green)
+                                .accessibilityLabel("Live-Transkription läuft")
+                        }
+                        if !recording {
+                            Text("Pause").font(.caption.bold()).foregroundStyle(.orange)
+                        }
+                    }
+                    LevelMeter(level: recorder.level).frame(height: 6)
+                }
+                CircleButton(systemImage: "star.fill", tint: .yellow, label: "Marker setzen", action: onMarker)
+                CircleButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)
             }
         }
     }
 }
 
-private struct PlayerControls: View {
+/// Schmale Wiedergabe-Leiste: −15 s · Play/Pause · +15 s · Zeitleiste.
+private struct PlayerBar: View {
     let player: AudioPlayer
 
     var body: some View {
-        VStack(spacing: 16) {
-            Slider(value: Binding(get: { player.currentTime }, set: { player.seek(to: $0) }),
-                   in: 0...max(player.duration, 0.1))
-            HStack {
-                Text(player.currentTime.clockString)
-                Spacer()
-                Text(player.duration.clockString)
-            }
-            .font(.caption)
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
-
-            HStack(spacing: 40) {
-                RoundButton(systemImage: "gobackward.15", tint: .secondary, label: "15 s zurück") { player.skip(by: -15) }
-                RoundButton(systemImage: player.isPlaying ? "pause.fill" : "play.fill", tint: .accentColor,
-                            label: player.isPlaying ? "Pause" : "Abspielen", action: player.toggle)
-                RoundButton(systemImage: "goforward.15", tint: .secondary, label: "15 s vor") { player.skip(by: 15) }
+        HStack(spacing: 10) {
+            CircleButton(systemImage: "gobackward.15", tint: .secondary, label: "15 s zurück") { player.skip(by: -15) }
+            CircleButton(systemImage: player.isPlaying ? "pause.fill" : "play.fill", tint: .accentColor,
+                         label: player.isPlaying ? "Pause" : "Abspielen", action: player.toggle)
+            CircleButton(systemImage: "goforward.15", tint: .secondary, label: "15 s vor") { player.skip(by: 15) }
+            VStack(spacing: 0) {
+                Slider(value: Binding(get: { player.currentTime }, set: { player.seek(to: $0) }),
+                       in: 0...max(player.duration, 0.1))
+                HStack {
+                    Text(player.currentTime.clockString)
+                    Spacer()
+                    Text(player.duration.clockString)
+                }
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// Hinweis, wenn das Mikrofon seit ein paar Sekunden exakt Stille liefert.
+private struct SilentMicBanner: View {
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Mikrofon liefert kein Signal").font(.callout.bold())
+                Text("Ist das iPhone mit dem Mac verbunden (Device Hub, Bildschirmübertragung)? Dann wird das Mikrofon umgeleitet – Verbindung trennen.")
+                    .font(.caption)
+            }
+        } icon: {
+            Image(systemName: "mic.slash.fill")
+        }
+        .foregroundStyle(.orange)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -255,7 +304,7 @@ private struct LevelMeter: View {
     }
 }
 
-private struct RoundButton: View {
+private struct CircleButton: View {
     let systemImage: String
     let tint: Color
     let label: String
@@ -264,11 +313,12 @@ private struct RoundButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 30))
-                .frame(width: 72, height: 72)
-                .background(Circle().fill(tint.opacity(0.15)))
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(tint.opacity(0.18)))
                 .foregroundStyle(tint)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
 }
