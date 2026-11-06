@@ -9,6 +9,11 @@ struct SessionView: View {
     @State private var isStarting = false
     @State private var markers = MarkerStore()
     @State private var notes = NotesStore()
+    @State private var photos = PhotoStore()
+    @State private var isCameraShown = false
+    @State private var isScannerShown = false
+    @State private var captureTime: TimeInterval?
+    @State private var selectedPhoto: SessionPhoto?
 
     private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
 
@@ -34,6 +39,10 @@ struct SessionView: View {
                                onDelete: { markers.remove($0, savingTo: session.markersURL) })
             }
 
+            if !photos.photos.isEmpty {
+                PhotoStripView(store: photos) { selectedPhoto = $0 }
+            }
+
             if let message = recorder.errorMessage ?? player.errorMessage {
                 Text(message).foregroundStyle(.red).font(.callout)
             }
@@ -57,6 +66,24 @@ struct SessionView: View {
             if recorder.state == .idle && !isPlaybackMode {
                 ToolbarItem(placement: .topBarTrailing) { languageMenu }
             }
+            ToolbarItem(placement: .topBarTrailing) { cameraMenu }
+        }
+        .fullScreenCover(isPresented: $isCameraShown) {
+            CameraPicker(onImage: { image in
+                photos.add(image, kind: .photo, time: captureTime)
+                isCameraShown = false
+            }, onCancel: { isCameraShown = false })
+            .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $isScannerShown) {
+            SlideScanner(onScan: { pages in
+                addSlides(pages)
+                isScannerShown = false
+            }, onCancel: { isScannerShown = false })
+            .ignoresSafeArea()
+        }
+        .sheet(item: $selectedPhoto) { photo in
+            PhotoDetailView(photo: photo, store: photos, onJump: isPlaybackMode ? jump(toTime:) : nil)
         }
         // Während der Aufnahme nicht versehentlich rausnavigieren
         .navigationBarBackButtonHidden(recorder.state != .idle || isStarting)
@@ -67,6 +94,7 @@ struct SessionView: View {
             }
             markers.load(from: session.markersURL)
             notes.load(drawingURL: session.drawingURL, timesURL: session.strokeTimesURL)
+            photos.load(sessionFolder: session.folderURL)
         }
         .onDisappear {
             player.stop()
@@ -74,6 +102,43 @@ struct SessionView: View {
         }
         // Watch über Start/Pause/Fortsetzen/Stopp informieren
         .onChange(of: recorder.state) { PhoneWatchLink.shared.publishState() }
+    }
+
+    private var cameraMenu: some View {
+        Menu {
+            Button("Foto aufnehmen", systemImage: "camera") { openCapture(scanner: false) }
+                .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
+            Button("Folie scannen", systemImage: "doc.viewfinder") { openCapture(scanner: true) }
+                .disabled(!SlideScanner.isSupported)
+        } label: {
+            Label("Foto", systemImage: "camera")
+        }
+        .disabled(isStarting)
+    }
+
+    /// Zeitpunkt merken, an dem die Kamera geöffnet wird – das ist der Moment, den man festhalten will.
+    private func openCapture(scanner: Bool) {
+        captureTime = currentSessionTime()
+        if scanner { isScannerShown = true } else { isCameraShown = true }
+    }
+
+    private func currentSessionTime() -> TimeInterval? {
+        if recorder.state != .idle { return recorder.sessionTime(at: .now) }
+        if isPlaybackMode { return player.currentTime }
+        return nil
+    }
+
+    /// Folien speichern und anschließend den Text erkennen (on-device).
+    private func addSlides(_ pages: [UIImage]) {
+        let languages = [session.language, "en-US", "de-DE"]
+        for page in pages {
+            guard let photo = photos.add(page, kind: .slide, time: captureTime) else { continue }
+            let store = photos
+            Task {
+                let text = await TextRecognizer.recognizeText(in: page, languages: languages)
+                store.setRecognizedText(text, for: photo.id)
+            }
+        }
     }
 
     private var languageMenu: some View {

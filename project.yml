@@ -33,6 +33,7 @@ targets:
         UILaunchScreen: {}
         UIBackgroundModes: [audio]
         NSMicrophoneUsageDescription: "BionicNotes nimmt Vorträge auf, damit du sie später anhören und transkribieren kannst."
+        NSCameraUsageDescription: "BionicNotes fotografiert Folien und Momente eines Vortrags und legt sie an die passende Stelle der Aufnahme."
         NSSpeechRecognitionUsageDescription: "BionicNotes transkribiert Vorträge direkt auf dem Gerät – nichts verlässt dein iPhone."
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

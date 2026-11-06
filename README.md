@@ -29,7 +29,7 @@ Nach jeder Änderung an `project.yml` oder wenn neue Dateien dazukommen: `xcodeg
 - [x] Schritt 2 – Live-Transkription on-device (SpeechAnalyzer), Transkript antippen → Audio springt
 - [~] Watch: BionicNotes Rewind + ⭐ Marker (Simulator-Build, Test auf echter Watch offen) – Fernbedienung folgt
 - [x] Schritt 3 – Pencil-Notizen mit Zeitverknüpfung (Tippen auf Notiz → Audio springt)
-- [ ] Schritt 4 – Fotos mit iPhone-Kamera
+- [x] Schritt 4 – Fotos mit iPhone-Kamera + Folien-Scan mit OCR
 - [ ] Schritt 5 – Layouts auf-/zugeklappt (iPhone Duo)
 - [ ] Schritt 6 – Meta-Brille (Wearables Device Access Toolkit)
 - [ ] Schritt 7 – Suche, Export, Zusammenfassungen
