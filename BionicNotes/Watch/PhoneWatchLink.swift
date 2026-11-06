@@ -16,9 +16,15 @@ final class PhoneWatchLink: NSObject {
         let elapsed: () -> TimeInterval
         let recentText: (_ seconds: TimeInterval) -> String
         let addMarker: (SessionMarker) -> Void
+        let pause: () -> Void
+        let resume: () -> Void
+        let stop: () -> Void
     }
 
     private var active: ActiveSession?
+
+    /// Laufende Aufnahme – auch für App Intents (Siri, Kurzbefehle).
+    var current: ActiveSession? { active }
 
     func activate() {
         guard WCSession.isSupported() else { return }

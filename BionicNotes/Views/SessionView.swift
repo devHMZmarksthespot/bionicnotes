@@ -79,7 +79,14 @@ struct SessionView: View {
             markers.load(from: session.markersURL)
             notes.load(drawingURL: session.drawingURL, timesURL: session.strokeTimesURL)
             photos.load(sessionFolder: session.folderURL)
+            // Per Siri/Kurzbefehl angelegt: Aufnahme sofort starten.
+            if SessionCommands.shared.autoStartSessionID == session.uuid {
+                SessionCommands.shared.autoStartSessionID = nil
+                startRecording()
+            }
+            handleCaptureRequest()
         }
+        .onChange(of: SessionCommands.shared.pending) { handleCaptureRequest() }
         .onDisappear {
             player.stop()
             notes.saveNow()
@@ -158,6 +165,14 @@ struct SessionView: View {
             Label("Foto", systemImage: "camera")
         }
         .disabled(isStarting)
+    }
+
+    /// Foto/Folie per Siri oder Kurzbefehl – nur in der Session, die gerade aufnimmt.
+    private func handleCaptureRequest() {
+        guard isRecordingActive, !isCameraShown, !isScannerShown else { return }
+        let commands = SessionCommands.shared
+        if commands.take(.photo) { openCapture(scanner: false) }
+        else if commands.take(.slide) { openCapture(scanner: true) }
     }
 
     /// Zeitpunkt merken, an dem die Kamera geöffnet wird – das ist der Moment, den man festhalten will.
@@ -285,7 +300,10 @@ struct SessionView: View {
             },
             elapsed: { recorder.elapsed },
             recentText: { seconds in transcript.recentText(seconds: seconds, until: recorder.elapsed) },
-            addMarker: { markers.add($0, savingTo: markersURL) }
+            addMarker: { markers.add($0, savingTo: markersURL) },
+            pause: { recorder.pause() },
+            resume: { recorder.resume() },
+            stop: { finishRecording() }
         ))
     }
 

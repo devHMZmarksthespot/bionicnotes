@@ -5,6 +5,7 @@ options:
     iOS: "27.3"          # Pencil auf dem iPhone Duo ab 27.2, Ziel-Release 27.3
     watchOS: "27.3"
   createIntermediateGroups: true
+  developmentLanguage: de             # Siri-Sätze der App Intents sind auf Deutsch
 settings:
   base:
     SWIFT_VERSION: "5.0"

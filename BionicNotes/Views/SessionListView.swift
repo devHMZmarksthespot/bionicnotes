@@ -43,6 +43,20 @@ struct SessionListView: View {
                 SessionView(session: session)
             }
         }
+        // „Starte Aufnahme“ per Siri/Kurzbefehl/Action-Taste
+        .onAppear(perform: handleStartRequest)
+        .onChange(of: SessionCommands.shared.pending) { handleStartRequest() }
+    }
+
+    private func handleStartRequest() {
+        // Läuft schon eine Aufnahme, beantwortet der Intent das selbst.
+        guard PhoneWatchLink.shared.current == nil,
+              SessionCommands.shared.take(.newRecording) else { return }
+        let title = "Vortrag " + Date.now.formatted(date: .abbreviated, time: .shortened)
+        let session = NoteSession(title: title)
+        context.insert(session)
+        SessionCommands.shared.autoStartSessionID = session.uuid
+        path = [session]
     }
 
     private func newSession() {
