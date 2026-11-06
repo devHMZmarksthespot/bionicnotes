@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Arbeitsbereich einer Session: Pencil-Notizen + Transkript.
-/// Breit (Duo aufgeklappt): Transkript links, Notizen rechts. Schmal: umschaltbar.
-struct SessionWorkspace: View {
-    enum Tab: String, CaseIterable, Identifiable {
-        case notes = "Notizen", transcript = "Transkript"
-        var id: String { rawValue }
-    }
+/// Ansicht auf schmalem Bildschirm (Duo zugeklappt). „Schnell“ gibt es nur während der Aufnahme.
+enum CompactPane: String, CaseIterable, Identifiable {
+    case quick = "Schnell", notes = "Notizen", transcript = "Transkript"
+    var id: String { rawValue }
+}
 
+/// Arbeitsbereich einer Session: Pencil-Notizen + Transkript.
+/// Breit (Duo aufgeklappt): Transkript links, Notizen rechts. Schmal: `compactPane` entscheidet.
+struct SessionWorkspace: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     let notes: NotesStore
     let transcript: TranscriptStore
@@ -18,10 +19,11 @@ struct SessionWorkspace: View {
     let timeForStroke: (Date) -> TimeInterval?
     let onJump: (TimeInterval) -> Void
     let onSelectSegment: ((TranscriptSegment) -> Void)?
+    /// Auf schmalem Bildschirm: welche Ansicht (der Umschalter liegt in der SessionView).
+    let compactPane: CompactPane
 
     @State private var mode: NotesMode = .write
     @State private var pencilMode = PencilPreference.isPencilMode
-    @State private var tab: Tab = .notes
 
     var body: some View {
         if sizeClass == .regular {
@@ -34,15 +36,9 @@ struct SessionWorkspace: View {
                 }
             }
         } else {
-            VStack(spacing: 8) {
-                Picker("Ansicht", selection: $tab) {
-                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                switch tab {
-                case .notes: notesPanel
-                case .transcript: transcriptPanel
-                }
+            switch compactPane {
+            case .transcript: transcriptPanel
+            case .notes, .quick: notesPanel
             }
         }
     }

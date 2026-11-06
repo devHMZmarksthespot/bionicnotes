@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SessionView: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Bindable var session: NoteSession
     @State private var recorder = AudioRecorder()
     @State private var player = AudioPlayer()
@@ -14,47 +15,30 @@ struct SessionView: View {
     @State private var isScannerShown = false
     @State private var captureTime: TimeInterval?
     @State private var selectedPhoto: SessionPhoto?
+    @State private var pane: CompactPane = .notes
 
     private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
+    private var isCompact: Bool { sizeClass == .compact }
+    private var isRecordingActive: Bool { recorder.state != .idle }
 
     var body: some View {
         VStack(spacing: 10) {
-            if isPlaybackMode {
-                PlayerBar(player: player)
+            if isCompact && isRecordingActive && pane == .quick {
+                panePicker
+                QuickModeView(recorder: recorder,
+                              transcript: transcript,
+                              isListening: transcript.status == .listening,
+                              onMarker: addPhoneMarker,
+                              onPhoto: { openCapture(scanner: false) },
+                              onSlide: { openCapture(scanner: true) },
+                              onStop: finishRecording)
+                if recorder.isInputSilent {
+                    SilentMicBanner()
+                }
+                Spacer(minLength: 0)
             } else {
-                RecorderBar(recorder: recorder, isListening: transcript.status == .listening,
-                            startDisabled: isStarting,
-                            onStart: startRecording, onStop: finishRecording, onMarker: addPhoneMarker)
+                mainContent
             }
-
-            if recorder.isInputSilent {
-                SilentMicBanner()
-            }
-
-            TranscriptStatusView(status: transcript.status)
-
-            if !markers.markers.isEmpty {
-                MarkerListView(markers: markers.markers,
-                               onSelect: isPlaybackMode ? { jump(toTime: $0.time) } : nil,
-                               onDelete: { markers.remove($0, savingTo: session.markersURL) })
-            }
-
-            if !photos.photos.isEmpty {
-                PhotoStripView(store: photos) { selectedPhoto = $0 }
-            }
-
-            if let message = recorder.errorMessage ?? player.errorMessage {
-                Text(message).foregroundStyle(.red).font(.callout)
-            }
-
-            SessionWorkspace(notes: notes,
-                             transcript: transcript,
-                             isPlaybackMode: isPlaybackMode,
-                             playbackTime: isPlaybackMode ? player.currentTime : nil,
-                             highlightTime: isPlaybackMode && player.isPlaying ? player.currentTime : nil,
-                             timeForStroke: strokeTime(for:),
-                             onJump: jump(toTime:),
-                             onSelectSegment: isPlaybackMode ? jump(to:) : nil)
         }
         .padding(.horizontal)
         .padding(.top, 4)
@@ -102,6 +86,66 @@ struct SessionView: View {
         }
         // Watch über Start/Pause/Fortsetzen/Stopp informieren
         .onChange(of: recorder.state) { PhoneWatchLink.shared.publishState() }
+        // Zugeklappt: beim Start direkt in den Schnell-Modus, nach dem Stopp zurück zu den Notizen.
+        .onChange(of: recorder.state) { old, new in
+            if old == .idle && new != .idle && isCompact { pane = .quick }
+            if new == .idle && pane == .quick { pane = .notes }
+        }
+    }
+
+    /// Umschalter auf schmalem Bildschirm; „Schnell“ nur während der Aufnahme.
+    private var panePicker: some View {
+        Picker("Ansicht", selection: $pane) {
+            ForEach(CompactPane.allCases.filter { $0 != .quick || isRecordingActive }) {
+                Text($0.rawValue).tag($0)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+            if isPlaybackMode {
+                PlayerBar(player: player)
+            } else {
+                RecorderBar(recorder: recorder, isListening: transcript.status == .listening,
+                            startDisabled: isStarting,
+                            onStart: startRecording, onStop: finishRecording, onMarker: { addPhoneMarker() })
+            }
+
+            if recorder.isInputSilent {
+                SilentMicBanner()
+            }
+
+            TranscriptStatusView(status: transcript.status)
+
+            if !markers.markers.isEmpty {
+                MarkerListView(markers: markers.markers,
+                               onSelect: isPlaybackMode ? { jump(toTime: $0.time) } : nil,
+                               onDelete: { markers.remove($0, savingTo: session.markersURL) })
+            }
+
+            if !photos.photos.isEmpty {
+                PhotoStripView(store: photos) { selectedPhoto = $0 }
+            }
+
+            if let message = recorder.errorMessage ?? player.errorMessage {
+                Text(message).foregroundStyle(.red).font(.callout)
+            }
+
+            if isCompact {
+                panePicker
+            }
+
+            SessionWorkspace(notes: notes,
+                             transcript: transcript,
+                             isPlaybackMode: isPlaybackMode,
+                             playbackTime: isPlaybackMode ? player.currentTime : nil,
+                             highlightTime: isPlaybackMode && player.isPlaying ? player.currentTime : nil,
+                             timeForStroke: strokeTime(for:),
+                             onJump: jump(toTime:),
+                             onSelectSegment: isPlaybackMode ? jump(to:) : nil,
+                             compactPane: pane)
     }
 
     private var cameraMenu: some View {
@@ -253,9 +297,12 @@ struct SessionView: View {
         return nil
     }
 
-    private func addPhoneMarker() {
-        guard let marker = PhoneWatchLink.shared.makeMarker(seconds: WatchProtocol.defaultSeconds, source: .phone) else { return }
+    /// Setzt einen ⭐-Marker an der aktuellen Stelle und liefert dessen Zeit.
+    @discardableResult
+    private func addPhoneMarker() -> TimeInterval? {
+        guard let marker = PhoneWatchLink.shared.makeMarker(seconds: WatchProtocol.defaultSeconds, source: .phone) else { return nil }
         markers.add(marker, savingTo: session.markersURL)
+        return marker.time
     }
 }
 
@@ -300,7 +347,7 @@ private struct RecorderBar: View {
                             Text("Pause").font(.caption.bold()).foregroundStyle(.orange)
                         }
                     }
-                    LevelMeter(level: recorder.level).frame(height: 6)
+                    LevelMeterBar(level: recorder.level).frame(height: 6)
                 }
                 CircleButton(systemImage: "star.fill", tint: .yellow, label: "Marker setzen", action: onMarker)
                 CircleButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)
@@ -354,20 +401,6 @@ private struct SilentMicBanner: View {
     }
 }
 
-private struct LevelMeter: View {
-    let level: Float
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.quaternary)
-                Capsule().fill(level > 0.85 ? Color.red : Color.green)
-                    .frame(width: geo.size.width * CGFloat(level))
-                    .animation(.linear(duration: 0.1), value: level)
-            }
-        }
-    }
-}
 
 private struct CircleButton: View {
     let systemImage: String
