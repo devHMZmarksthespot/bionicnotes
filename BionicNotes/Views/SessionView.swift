@@ -7,6 +7,7 @@ struct SessionView: View {
     @State private var transcript = TranscriptStore()
     @State private var transcriber: LiveTranscriber?
     @State private var isStarting = false
+    @State private var markers = MarkerStore()
 
     private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
 
@@ -20,7 +21,7 @@ struct SessionView: View {
                 PlayerControls(player: player)
             } else {
                 RecorderControls(recorder: recorder, startDisabled: isStarting,
-                                 onStart: startRecording, onStop: finishRecording)
+                                 onStart: startRecording, onStop: finishRecording, onMarker: addPhoneMarker)
                 if recorder.state == .idle {
                     Picker("Sprache", selection: $session.language) {
                         ForEach(TranscriptionLanguage.allCases) { Text($0.label).tag($0.rawValue) }
@@ -31,6 +32,12 @@ struct SessionView: View {
             }
 
             TranscriptStatusView(status: transcript.status)
+
+            if !markers.markers.isEmpty {
+                MarkerListView(markers: markers.markers,
+                               onSelect: isPlaybackMode ? { jump(toTime: $0.time) } : nil,
+                               onDelete: { markers.remove($0, savingTo: session.markersURL) })
+            }
 
             if let message = recorder.errorMessage ?? player.errorMessage {
                 Text(message).foregroundStyle(.red).font(.callout)
@@ -54,8 +61,11 @@ struct SessionView: View {
                 player.load(url: session.audioURL)
                 transcript.load(from: session.transcriptURL)
             }
+            markers.load(from: session.markersURL)
         }
         .onDisappear { player.stop() }
+        // Watch über Start/Pause/Fortsetzen/Stopp informieren
+        .onChange(of: recorder.state) { PhoneWatchLink.shared.publishState() }
     }
 
     private func startRecording() {
@@ -92,7 +102,9 @@ struct SessionView: View {
             transcriber = live
             let started = await recorder.start(writingTo: session.audioURL,
                                                onBuffer: live.map { t in { @Sendable buffer, _ in t.feed(buffer) } })
-            if !started, let live {
+            if started {
+                attachWatch()
+            } else if let live {
                 await live.finish()
                 transcriber = nil
                 transcript.status = .idle
@@ -101,6 +113,7 @@ struct SessionView: View {
     }
 
     private func finishRecording() {
+        PhoneWatchLink.shared.detach()
         session.duration = recorder.stop()
         session.hasAudio = true
         player.load(url: session.audioURL)
@@ -118,8 +131,37 @@ struct SessionView: View {
     }
 
     private func jump(to segment: TranscriptSegment) {
-        player.seek(to: segment.start)
+        jump(toTime: segment.start)
+    }
+
+    private func jump(toTime time: TimeInterval) {
+        player.seek(to: time)
         if !player.isPlaying { player.toggle() }
+    }
+
+    /// Macht die laufende Aufnahme für die Watch (Rewind, Marker, Status) erreichbar.
+    private func attachWatch() {
+        let recorder = recorder, transcript = transcript, markers = markers
+        let session = session
+        let markersURL = session.markersURL
+        PhoneWatchLink.shared.attach(.init(
+            title: { session.title },
+            state: {
+                switch recorder.state {
+                case .idle: .idle
+                case .recording: .recording
+                case .paused: .paused
+                }
+            },
+            elapsed: { recorder.elapsed },
+            recentText: { seconds in transcript.recentText(seconds: seconds, until: recorder.elapsed) },
+            addMarker: { markers.add($0, savingTo: markersURL) }
+        ))
+    }
+
+    private func addPhoneMarker() {
+        guard let marker = PhoneWatchLink.shared.makeMarker(seconds: WatchProtocol.defaultSeconds, source: .phone) else { return }
+        markers.add(marker, savingTo: session.markersURL)
     }
 }
 
@@ -128,6 +170,7 @@ private struct RecorderControls: View {
     let startDisabled: Bool
     let onStart: () -> Void
     let onStop: () -> Void
+    let onMarker: () -> Void
 
     var body: some View {
         VStack(spacing: 24) {
@@ -145,9 +188,11 @@ private struct RecorderControls: View {
                         .disabled(startDisabled)
                 case .recording:
                     RoundButton(systemImage: "pause.fill", tint: .orange, label: "Pause", action: recorder.pause)
+                    RoundButton(systemImage: "star.fill", tint: .yellow, label: "Marker setzen", action: onMarker)
                     RoundButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)
                 case .paused:
                     RoundButton(systemImage: "record.circle.fill", tint: .red, label: "Fortsetzen", action: recorder.resume)
+                    RoundButton(systemImage: "star.fill", tint: .yellow, label: "Marker setzen", action: onMarker)
                     RoundButton(systemImage: "stop.fill", tint: .gray, label: "Beenden", action: onStop)
                 }
             }

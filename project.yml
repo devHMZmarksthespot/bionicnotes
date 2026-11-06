@@ -19,6 +19,7 @@ targets:
     scheme: {}                        # feste Schemes, statt sie von Xcode automatisch erzeugen zu lassen
     sources:
       - BionicNotes
+      - Shared                          # gemeinsam mit der Watch-App
     dependencies:
       - target: BionicNotesWatch      # Watch-App wird ins iPhone-App-Bundle eingebettet
     settings:
@@ -42,6 +43,7 @@ targets:
     scheme: {}
     sources:
       - BionicNotesWatch
+      - Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: hmzinnovation.bionicnotes.watchkitapp

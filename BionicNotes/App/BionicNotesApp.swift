@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct BionicNotesApp: App {
     init() {
+        PhoneWatchLink.shared.activate()
         #if DEBUG
         TranscriptionSelfTest.runIfRequested()
         #endif

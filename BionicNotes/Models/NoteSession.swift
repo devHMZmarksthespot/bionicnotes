@@ -25,4 +25,5 @@ final class NoteSession {
     var folderURL: URL { SessionStorage.folder(for: uuid) }
     var audioURL: URL { folderURL.appending(path: "audio.m4a") }
     var transcriptURL: URL { folderURL.appending(path: "transcript.json") }
+    var markersURL: URL { folderURL.appending(path: "markers.json") }
 }

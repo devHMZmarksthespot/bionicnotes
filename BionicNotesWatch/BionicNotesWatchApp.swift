@@ -1,29 +1,18 @@
 import SwiftUI
 
-/// Watch-App: später Fernbedienung (Aufnahme, ⭐ Marker, Foto) und BionicNotes Rewind.
-/// Aktuell nur Gerüst, damit Projekt-Setup und Signing für beide Plattformen stehen.
+/// Watch-App: Status der Aufnahme, BionicNotes Rewind (letzte 30–60 s Transkript) und ⭐-Marker.
+/// Transkribiert wird auf dem iPhone – SpeechAnalyzer gibt es auf watchOS nicht.
 @main
 struct BionicNotesWatchApp: App {
+    init() {
+        WatchLink.shared.activate()
+    }
+
     var body: some Scene {
         WindowGroup {
-            WatchHomeView()
+            NavigationStack {
+                WatchHomeView(link: WatchLink.shared)
+            }
         }
-    }
-}
-
-struct WatchHomeView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "waveform")
-                .font(.system(size: 36))
-                .foregroundStyle(.red)
-            Text("BionicNotes")
-                .font(.headline)
-            Text("Starte eine Session auf dem iPhone.")
-                .font(.footnote)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
     }
 }
