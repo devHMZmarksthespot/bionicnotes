@@ -34,10 +34,15 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: hmzinnovation.bionicnotes
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    entitlements:
+      path: BionicNotes/BionicNotes.entitlements
+      properties:
+        com.apple.developer.private-cloud-compute: true   # Managed Capability (Apple-Freigabe 17.11.2026)
     info:
       path: BionicNotes/Info.plist
       properties:
         CFBundleDisplayName: BionicNotes
+        BNPrivateCloudCompute: true          # schaltet die PCC-Option in der App frei (nur mit Entitlement!)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)   # für jeden TestFlight-Upload erhöhen
         LSApplicationCategoryType: public.app-category.productivity
