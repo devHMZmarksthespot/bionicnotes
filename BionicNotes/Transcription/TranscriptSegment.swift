@@ -11,6 +11,15 @@ struct TranscriptSegment: Codable, Identifiable, Hashable, Sendable {
 
 /// Inhalt von transcript.json im Session-Ordner.
 struct TranscriptFile: Codable {
+    enum Engine: String {
+        case live    // Apple SpeechTranscriber während der Aufnahme
+        case whisper // genaue Nachtranskription
+    }
+
     var locale: String
     var segments: [TranscriptSegment]
+    /// `nil` bei älteren Dateien = Live-Transkript.
+    var engine: String? = nil
+
+    var isWhisper: Bool { engine == Engine.whisper.rawValue }
 }

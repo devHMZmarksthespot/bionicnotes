@@ -6,12 +6,16 @@ options:
     watchOS: "27.3"
   createIntermediateGroups: true
   developmentLanguage: de             # Siri-Sätze der App Intents sind auf Deutsch
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit.git
+    exactVersion: 1.1.1
 settings:
   base:
     SWIFT_VERSION: "5.0"
     DEVELOPMENT_TEAM: CA9847D4GK
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   BionicNotes:
@@ -23,16 +27,24 @@ targets:
       - Shared                          # gemeinsam mit der Watch-App
     dependencies:
       - target: BionicNotesWatch      # Watch-App wird ins iPhone-App-Bundle eingebettet
+      - package: WhisperKit           # genaue Nachtranskription on-device
+        product: WhisperKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: hmzinnovation.bionicnotes
         TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
       path: BionicNotes/Info.plist
       properties:
         CFBundleDisplayName: BionicNotes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)   # für jeden TestFlight-Upload erhöhen
+        LSApplicationCategoryType: public.app-category.productivity
+        ITSAppUsesNonExemptEncryption: false   # keine eigene Verschlüsselung → keine Export-Compliance-Abfrage in TestFlight
         UILaunchScreen: {}
-        UIBackgroundModes: [audio]
+        UIBackgroundModes: [audio, processing]
+        BGTaskSchedulerPermittedIdentifiers: [hmzinnovation.bionicnotes.retranscribe.*]   # Nachtranskription läuft im Hintergrund weiter
         NSMicrophoneUsageDescription: "BionicNotes nimmt Vorträge auf, damit du sie später anhören und transkribieren kannst."
         NSCameraUsageDescription: "BionicNotes fotografiert Folien und Momente eines Vortrags und legt sie an die passende Stelle der Aufnahme."
         NSSpeechRecognitionUsageDescription: "BionicNotes transkribiert Vorträge direkt auf dem Gerät – nichts verlässt dein iPhone."
@@ -51,9 +63,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: hmzinnovation.bionicnotes.watchkitapp
         PRODUCT_NAME: BionicNotes
         SKIP_INSTALL: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
       path: BionicNotesWatch/Info.plist
       properties:
         CFBundleDisplayName: BionicNotes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)   # für jeden TestFlight-Upload erhöhen
         WKApplication: true
+        ITSAppUsesNonExemptEncryption: false
         WKCompanionAppBundleIdentifier: hmzinnovation.bionicnotes

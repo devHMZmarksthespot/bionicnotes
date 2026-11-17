@@ -32,4 +32,11 @@ Nach jeder Änderung an `project.yml` oder wenn neue Dateien dazukommen: `xcodeg
 - [x] Schritt 4 – Fotos mit iPhone-Kamera + Folien-Scan mit OCR
 - [ ] Schritt 5 – Layouts auf-/zugeklappt (iPhone Duo)
 - [ ] Schritt 6 – Meta-Brille (Wearables Device Access Toolkit)
-- [ ] Schritt 7 – Suche, Export, Zusammenfassungen
+- [x] Schritt 7 – Suche, Export (PDF/RTF/Markdown/Text/SRT/Audio/ZIP), Nachbearbeitung mit 10 Vorlagen (on-device)
+- [x] TestFlight-Vorbereitung v1.0 → siehe [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md)
+
+### Debug-Helfer (nur Debug-Builds)
+
+- `-seedDemo` legt eine Beispiel-Session an, `-openDemo` öffnet sie, `-openSheet summary|export` öffnet das Sheet
+- `-exportSelfTest` schreibt alle Vorlagen (strukturiert) und Exportformate nach `Documents/ExportSelfTest`
+- `-summarySelfTest` testet die On-Device-Zusammenfassung (im Simulator ohne Apple-Intelligence-Assets → Fallback)

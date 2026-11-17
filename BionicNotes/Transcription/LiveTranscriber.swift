@@ -80,6 +80,15 @@ final class LiveTranscriber: @unchecked Sendable {
         transcriptionLog.info("analyzer format: \(format.description, privacy: .public)")
         converter = AnalyzerInputConverter(analyzerFormat: format)
         try await analyzer.prepareToAnalyze(in: format)
+        // Eigene Fachbegriffe als Kontext – verbessert die Erkennung von Namen, Produkten, Abkürzungen.
+        let terms = Glossary.terms
+        if !terms.isEmpty {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = Array(terms.prefix(100))
+            do { try await analyzer.setContext(context) } catch {
+                transcriptionLog.error("setContext failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
 
         let (stream, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
         self.continuation = continuation

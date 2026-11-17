@@ -5,6 +5,7 @@ import SwiftData
 struct BionicNotesApp: App {
     init() {
         PhoneWatchLink.shared.activate()
+        SessionStorage.applyBackupPreference()
         #if DEBUG
         TranscriptionSelfTest.runIfRequested()
         #endif

@@ -15,12 +15,16 @@ final class TranscriptStore {
 
     private(set) var segments: [TranscriptSegment] = []
     private(set) var volatileText = ""
+    /// Woher das gespeicherte Transkript stammt (Live oder Whisper-Nachtranskription).
+    private(set) var engine: String?
+    var isWhisper: Bool { engine == TranscriptFile.Engine.whisper.rawValue }
     var status: Status = .idle
 
     var isEmpty: Bool { segments.isEmpty && volatileText.isEmpty }
 
     func reset() {
         segments = []
+        engine = nil
         volatileText = ""
     }
 
@@ -50,7 +54,8 @@ final class TranscriptStore {
     // MARK: - Speichern / Laden (transcript.json)
 
     func save(to url: URL, locale: String) {
-        let file = TranscriptFile(locale: locale, segments: segments)
+        segments = Glossary.correct(segments)
+        let file = TranscriptFile(locale: locale, segments: segments, engine: engine)
         do {
             let data = try JSONEncoder().encode(file)
             try data.write(to: url, options: .atomic)
@@ -63,6 +68,7 @@ final class TranscriptStore {
         guard let data = try? Data(contentsOf: url),
               let file = try? JSONDecoder().decode(TranscriptFile.self, from: data) else { return }
         segments = file.segments
+        engine = file.engine
         volatileText = ""
     }
 }

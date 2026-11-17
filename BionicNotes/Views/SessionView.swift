@@ -16,6 +16,9 @@ struct SessionView: View {
     @State private var captureTime: TimeInterval?
     @State private var selectedPhoto: SessionPhoto?
     @State private var pane: CompactPane = .notes
+    @State private var summaries = SummaryStore()
+    @State private var isSummaryShown = false
+    @State private var isExportShown = false
 
     private var isPlaybackMode: Bool { session.hasAudio && recorder.state == .idle && !isStarting }
     private var isCompact: Bool { sizeClass == .compact }
@@ -51,6 +54,28 @@ struct SessionView: View {
                 ToolbarItem(placement: .topBarTrailing) { languageMenu }
             }
             ToolbarItem(placement: .topBarTrailing) { cameraMenu }
+            if recorder.state == .idle && !isStarting {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { notes.saveNow(); isExportShown = true } label: {
+                        Label("Exportieren", systemImage: "square.and.arrow.up")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { player.stop(); notes.saveNow(); isSummaryShown = true } label: {
+                        Label("Nachbearbeiten", systemImage: "wand.and.stars")
+                    }
+                    .disabled(!session.hasAudio && transcript.segments.isEmpty && photos.photos.allSatisfy { $0.kind != .slide })
+                }
+            }
+        }
+        .sheet(isPresented: $isSummaryShown) {
+            SummaryView(content: currentContent(), store: summaries,
+                        retranscribe: session.hasAudio ? Retranscriber.Input(sessionID: session.uuid, title: session.title,
+                                                                             folderURL: session.folderURL, language: session.language,
+                                                                             duration: session.duration) : nil)
+        }
+        .sheet(isPresented: $isExportShown) {
+            ExportView(content: currentContent())
         }
         .fullScreenCover(isPresented: $isCameraShown) {
             CameraPicker(onImage: { image in
@@ -79,14 +104,26 @@ struct SessionView: View {
             markers.load(from: session.markersURL)
             notes.load(drawingURL: session.drawingURL, timesURL: session.strokeTimesURL)
             photos.load(sessionFolder: session.folderURL)
+            summaries.load(sessionFolder: session.folderURL)
             // Per Siri/Kurzbefehl angelegt: Aufnahme sofort starten.
             if SessionCommands.shared.autoStartSessionID == session.uuid {
                 SessionCommands.shared.autoStartSessionID = nil
                 startRecording()
             }
             handleCaptureRequest()
+            #if DEBUG
+            switch DemoSession.openSheet {
+            case "summary": isSummaryShown = true
+            case "export": isExportShown = true
+            default: break
+            }
+            #endif
         }
         .onChange(of: SessionCommands.shared.pending) { handleCaptureRequest() }
+        // Nach der Nachtranskription das neue Transkript anzeigen
+        .onChange(of: Retranscriber.shared.revision) {
+            if recorder.state == .idle { transcript.load(from: session.transcriptURL) }
+        }
         .onDisappear {
             player.stop()
             notes.saveNow()
@@ -179,6 +216,20 @@ struct SessionView: View {
     private func openCapture(scanner: Bool) {
         captureTime = currentSessionTime()
         if scanner { isScannerShown = true } else { isCameraShown = true }
+    }
+
+    /// Aktueller Stand der Session aus den Stores (das Transkript wird nach dem Stopp evtl. noch gespeichert).
+    private func currentContent() -> SessionContent {
+        SessionContent(title: session.title,
+                       createdAt: session.createdAt,
+                       duration: session.duration,
+                       language: session.language,
+                       hasAudio: session.hasAudio,
+                       segments: transcript.segments,
+                       markers: markers.markers,
+                       photos: photos.photos,
+                       summaries: summaries.summaries,
+                       folderURL: session.folderURL)
     }
 
     private func currentSessionTime() -> TimeInterval? {
@@ -406,7 +457,7 @@ private struct SilentMicBanner: View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Mikrofon liefert kein Signal").font(.callout.bold())
-                Text("Ist das iPhone mit dem Mac verbunden (Device Hub, Bildschirmübertragung)? Dann wird das Mikrofon umgeleitet – Verbindung trennen.")
+                Text("Nutzt eine andere App oder ein verbundenes Gerät (Mac, CarPlay, Bildschirmübertragung) das Mikrofon? Dann die Verbindung trennen.")
                     .font(.caption)
             }
         } icon: {

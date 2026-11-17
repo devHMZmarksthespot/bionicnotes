@@ -32,6 +32,8 @@ struct StopRecordingIntent: AppIntent {
     static let title: LocalizedStringResource = "Aufnahme beenden"
     static let description = IntentDescription("Beendet die laufende Aufnahme und speichert Audio, Transkript und Notizen.")
     static let supportedModes: IntentModes = .background
+    /// Nicht vom Sperrbildschirm aus: sonst könnte jemand in der Nähe die Aufnahme beenden.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -46,6 +48,7 @@ struct PauseRecordingIntent: AppIntent {
     static let title: LocalizedStringResource = "Aufnahme pausieren"
     static let description = IntentDescription("Pausiert die laufende Aufnahme.")
     static let supportedModes: IntentModes = .background
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -89,6 +92,8 @@ struct RewindIntent: AppIntent {
     static let title: LocalizedStringResource = "Was wurde gerade gesagt?"
     static let description = IntentDescription("Liefert das Transkript der letzten Sekunden der laufenden Aufnahme.")
     static let supportedModes: IntentModes = .background
+    /// Transkript-Inhalt nur bei entsperrtem Gerät vorlesen.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     @Parameter(title: "Sekunden", default: 30, inclusiveRange: (10, 300))
     var seconds: Int
