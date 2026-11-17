@@ -131,7 +131,7 @@ enum SummaryGenerator {
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
-                    summaryLog.error("Private Cloud Compute fehlgeschlagen: \(String(describing: error), privacy: .public)")
+                    summaryLog.error("Private Cloud Compute fehlgeschlagen: \(String(describing: type(of: error)), privacy: .public) \(String(describing: error), privacy: .private)")
                     #if DEBUG
                     print("[Summary] PCC-Fehler: \(error)")
                     #endif
@@ -155,7 +155,7 @@ enum SummaryGenerator {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                summaryLog.error("On-Device-Zusammenfassung fehlgeschlagen: \(String(describing: error), privacy: .public)")
+                summaryLog.error("On-Device-Zusammenfassung fehlgeschlagen: \(String(describing: type(of: error)), privacy: .public) \(String(describing: error), privacy: .private)")
                 #if DEBUG
                 print("[Summary] Modellfehler: \(error)")
                 #endif
