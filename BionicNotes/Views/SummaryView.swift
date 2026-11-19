@@ -119,7 +119,10 @@ struct SummaryView: View {
 
     @ViewBuilder
     private var availabilityFooter: some View {
-        if SummaryGenerator.prefersPrivateCloud {
+        if OpenAIClient.isEnabled {
+            Label("Wird mit OpenAI erstellt (eigener Key): Transkript, Folientexte und Marker gehen an OpenAI. Bei Fehlern wird mit Apple erstellt.",
+                  systemImage: "sparkles")
+        } else if SummaryGenerator.prefersPrivateCloud {
             switch SummaryGenerator.privateCloudStatus {
             case .available(let approaching):
                 Label("Wird mit Apple Private Cloud Compute erstellt: Das Transkript geht verschlüsselt an Apple, wird nur für diese Anfrage verwendet und nicht gespeichert."
@@ -288,7 +291,9 @@ private struct GeneratingOverlay: View {
                     ProgressView().controlSize(.large)
                 }
                 Text(progress.label).font(.callout)
-                Text(SummaryGenerator.prefersPrivateCloud
+                Text(OpenAIClient.isEnabled
+                     ? "Läuft über OpenAI mit deinem Key – das kann bei langen Aufnahmen ein bis zwei Minuten dauern."
+                     : SummaryGenerator.prefersPrivateCloud
                      ? "Läuft verschlüsselt über Apple Private Cloud Compute – das kann bei langen Aufnahmen eine Minute dauern."
                      : "Läuft auf dem Gerät – das kann bei langen Aufnahmen eine Minute dauern.")
                     .font(.caption)

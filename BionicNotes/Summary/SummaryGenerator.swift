@@ -18,6 +18,7 @@ enum SummaryError: LocalizedError {
 /// Erzeugt Zusammenfassungen nach einer Vorlage.
 ///
 /// - Standard: Apples On-Device-Sprachmodell (`SystemLanguageModel`) – nichts verlässt das Gerät.
+/// - Opt-in: eigener OpenAI-Key (Drittanbieter, höchste Genauigkeit) – siehe `OpenAIClient`.
 /// - Opt-in: Apples grösseres Modell auf Private Cloud Compute (32K Kontext). Das Transkript wird dafür
 ///   verschlüsselt an Apple gesendet, nur für diese Anfrage verwendet und nicht gespeichert.
 ///   Fällt bei Netz-/Kontingentproblemen automatisch auf das Gerät zurück.
@@ -122,12 +123,27 @@ enum SummaryGenerator {
         guard !content.segments.isEmpty || !content.slides.isEmpty else { throw SummaryError.noContent }
 
         var notice: String?
+        if OpenAIClient.isEnabled {
+            do {
+                let body = try await generateWithOpenAI(template, content: content, onProgress: onProgress)
+                return Result(summary: makeSummary(template, content: content, body: body, engine: .openAI), notice: nil)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                summaryLog.error("OpenAI fehlgeschlagen: \(String(describing: type(of: error)), privacy: .public) \(String(describing: error), privacy: .private)")
+                #if DEBUG
+                print("[Summary] OpenAI-Fehler: \(error)")
+                #endif
+                let fallback = prefersPrivateCloud ? "mit Apple Private Cloud Compute" : "auf dem Gerät"
+                notice = (error.localizedDescription) + " Diese Fassung wurde \(fallback) erstellt."
+            }
+        }
         if prefersPrivateCloud {
             switch privateCloudStatus {
             case .available:
                 do {
                     let body = try await generateWithModel(template, content: content, backend: .privateCloud, onProgress: onProgress)
-                    return Result(summary: makeSummary(template, content: content, body: body, engine: .privateCloud), notice: nil)
+                    return Result(summary: makeSummary(template, content: content, body: body, engine: .privateCloud), notice: notice)
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
@@ -135,12 +151,12 @@ enum SummaryGenerator {
                     #if DEBUG
                     print("[Summary] PCC-Fehler: \(error)")
                     #endif
-                    notice = privateCloudNotice(for: error)
+                    notice = notice ?? privateCloudNotice(for: error)
                 }
             case .limitReached:
-                notice = "Das heutige Kontingent für Private Cloud Compute ist aufgebraucht – diese Fassung wurde auf dem Gerät erstellt."
+                notice = notice ?? "Das heutige Kontingent für Private Cloud Compute ist aufgebraucht – diese Fassung wurde auf dem Gerät erstellt."
             case .unavailable(let reason):
-                notice = reason + " Diese Fassung wurde auf dem Gerät erstellt."
+                notice = notice ?? reason + " Diese Fassung wurde auf dem Gerät erstellt."
             case .notInBuild:
                 break
             }
@@ -165,6 +181,32 @@ enum SummaryGenerator {
         onProgress(Progress(step: 1, total: 1, label: "Strukturierte Fassung wird erstellt …"))
         let body = StructuredSummarizer.body(for: template, content: content)
         return Result(summary: makeSummary(template, content: content, body: body, engine: .structured), notice: notice)
+    }
+
+    /// OpenAI (eigener Key): ganzes Transkript in einem Aufruf – grosses Kontextfenster, keine Verdichtung nötig.
+    @MainActor
+    private static func generateWithOpenAI(_ template: SummaryTemplate, content: SessionContent,
+                                           onProgress: @escaping (Progress) -> Void) async throws -> String {
+        onProgress(Progress(step: 1, total: 1, label: "Bericht wird mit OpenAI geschrieben …"))
+        let english = content.isEnglish
+        let terms = Glossary.terms
+        let transcript = Glossary.correct(content.timedTranscript)
+        let extras = extrasText(content, english: english, limit: 40_000)
+        let prompt = """
+        \(english ? "Title" : "Titel"): \(content.title)
+
+        \(english ? "TRANSCRIPT, with timestamps" : "TRANSKRIPT, mit Zeitstempeln"):
+        \(transcript.isEmpty ? "–" : transcript)
+        \(extras)
+
+        \(languageRule(english: english))
+        """
+        let response = try await OpenAIClient.respond(
+            instructions: instructions(for: template, english: english, terms: terms), input: prompt)
+        #if DEBUG
+        print("[Summary] OpenAI: in \(response.inputTokens ?? 0) / out \(response.outputTokens ?? 0) Tokens")
+        #endif
+        return Glossary.correct(dedupe(clean(response.text)))
     }
 
     private static func privateCloudNotice(for error: Error) -> String {

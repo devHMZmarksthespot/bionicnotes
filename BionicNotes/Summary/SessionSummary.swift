@@ -8,6 +8,8 @@ struct SessionSummary: Codable, Identifiable, Hashable, Sendable {
         case onDevice
         /// Apple Foundation Model auf Private Cloud Compute (Opt-in).
         case privateCloud
+        /// OpenAI mit dem eigenen API-Key des Nutzers (Opt-in, Drittanbieter).
+        case openAI
         /// Strukturierte Fassung ohne Sprachmodell (Marker, Folien, Schlüsselsätze).
         case structured
     }

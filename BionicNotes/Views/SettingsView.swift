@@ -9,6 +9,12 @@ struct SettingsView: View {
     @State private var modelSizeMB = 0
     @State private var isRemoveConfirmShown = false
     @AppStorage(SummaryGenerator.privateCloudKey) private var usesPrivateCloud = false
+    @AppStorage(OpenAIClient.enabledKey) private var usesOpenAI = false
+    @State private var openAIKeyInput = ""
+    @State private var openAIMasked = OpenAIClient.maskedKey
+    @State private var openAIStatus: String?
+    @State private var isVerifyingKey = false
+    @State private var isOpenAIConsentShown = false
     private var model: WhisperModel { .shared }
 
     private var version: String {
@@ -25,13 +31,75 @@ struct SettingsView: View {
         MIT License: Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         """
 
+    @ViewBuilder
+    private var openAISection: some View {
+        Section {
+            if let masked = openAIMasked {
+                LabeledContent("API-Key", value: masked)
+                Toggle(isOn: Binding(get: { usesOpenAI }, set: { on in
+                    if on { isOpenAIConsentShown = true } else { usesOpenAI = false }
+                })) {
+                    Label("Berichte mit OpenAI erstellen", systemImage: "sparkles")
+                }
+                Button("Key entfernen", role: .destructive) {
+                    OpenAIClient.Keychain.delete()
+                    usesOpenAI = false
+                    openAIMasked = nil
+                    openAIStatus = nil
+                }
+            } else {
+                SecureField("sk-…", text: $openAIKeyInput)
+                    .textContentType(.password)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                Button {
+                    Task { await saveOpenAIKey() }
+                } label: {
+                    if isVerifyingKey { ProgressView() } else { Text("Key prüfen und sichern") }
+                }
+                .disabled(openAIKeyInput.trimmingCharacters(in: .whitespaces).isEmpty || isVerifyingKey)
+            }
+            if let openAIStatus {
+                Text(openAIStatus).font(.caption).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Eigener OpenAI-Key (optional)")
+        } footer: {
+            Text("Für die höchste Genauigkeit bei langen Berichten. Eingeschaltet gehen Transkript, Folientexte und Marker an OpenAI (Drittanbieter) und werden nach deren Bedingungen verarbeitet; die Kosten werden deinem OpenAI-Konto belastet (ca. CHF 4 pro Stunde Aufnahme). Der Key bleibt nur in der Keychain dieses Geräts. Ohne Verbindung oder bei Fehlern wird der Bericht mit Apple erstellt.")
+        }
+        .confirmationDialog("Berichte mit OpenAI erstellen?", isPresented: $isOpenAIConsentShown, titleVisibility: .visible) {
+            Button("Einschalten") { usesOpenAI = true }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Transkript, Folientexte und Marker einer Session werden für jeden Bericht an OpenAI gesendet. Nur einschalten, wenn das für deine Aufnahmen erlaubt ist (z. B. keine vertraulichen Firmeninhalte ohne Freigabe).")
+        }
+    }
+
+    private func saveOpenAIKey() async {
+        let key = openAIKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        isVerifyingKey = true
+        defer { isVerifyingKey = false }
+        do {
+            try await OpenAIClient.verify(key: key)
+            guard OpenAIClient.Keychain.save(key) else {
+                openAIStatus = "Der Key konnte nicht in der Keychain gesichert werden."
+                return
+            }
+            openAIKeyInput = ""
+            openAIMasked = OpenAIClient.maskedKey
+            openAIStatus = "Key geprüft und gesichert."
+        } catch {
+            openAIStatus = error.localizedDescription
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Label("Aufnahme, Transkription, Zusammenfassungen und Export laufen vollständig auf diesem Gerät.",
+                    Label("Aufnahme, Transkription und Export laufen auf diesem Gerät. Berichte entstehen auf dem Gerät oder – wenn du es einschaltest – mit Apple Private Cloud Compute bzw. deinem eigenen OpenAI-Key.",
                           systemImage: "lock.shield.fill")
-                    Label("Kein Konto, keine Cloud, keine Analyse-Tools. Daten verlassen das Gerät nur, wenn du sie selbst teilst. Einzige Verbindung: das optionale Laden von Sprachmodellen.",
+                    Label("Kein Konto, keine Analyse-Tools. Daten verlassen das Gerät nur, wenn du sie selbst teilst oder eine der Optionen unten einschaltest. Sonst einzige Verbindung: das optionale Laden von Sprachmodellen.",
                           systemImage: "hand.raised.fill")
                 } header: {
                     Text("Datenschutz")
@@ -117,6 +185,8 @@ struct SettingsView: View {
                         Text("Eingeschaltet: Berichte werden mit Apples grösserem Modell erstellt – deutlich besser bei langen Aufnahmen. Transkript, Folientexte und Marker gehen dafür verschlüsselt an Apple, werden nur für diese Anfrage verwendet und nicht gespeichert; weder Apple noch wir können sie einsehen. Ausgeschaltet oder ohne Verbindung bleibt alles auf dem Gerät.")
                     }
                 }
+
+                openAISection
 
                 Section {
                     LabeledContent("Version", value: version)
